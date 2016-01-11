@@ -4,10 +4,10 @@
 
 from nltk.tree import Tree
 from nltk.parse import DependencyGraph
-from nltk.compat import string_types
-
 from collections import defaultdict, OrderedDict
 import re
+from sys import argv, stdin, stdout
+import getopt
 
 class UniversalDependencyGraph(DependencyGraph):
 
@@ -146,18 +146,19 @@ class Converter():
         else:
             tree.set_id(tree[1].id()) # first from left indicated or no head rule index found
 
-    def _extract_features(self, tag):
+    @staticmethod
+    def _extract_features(tag):
         return '_' #todo
 
     def _relation(self, mod_tag, head_tag):
         """
-            Return a Universal Relation name given a IcePaHC/Penn phrase-type tag
+            Return a Universal Relation name given an IcePaHC/Penn phrase-type tag
 
             http://www.linguist.is/icelandic_treebank/Phrase_Types
             to
             http://universaldependencies.github.io/docs/u/dep/index.html
 
-        :param tag: str
+        :param mod_tag: str
         :return: str
         """
 
@@ -201,7 +202,8 @@ class Converter():
 
         return 'rel-'+mod_tag
 
-    def _conllU_tag(self, tag):
+    @staticmethod
+    def _conllU_tag(tag):
         """
             Return Universal POS tag given a IcePaHC/Penn pos-tag
 
@@ -264,8 +266,8 @@ class Converter():
         # fallthrough: CONJ ...
         return tag
 
-    def toDep(self, psd):
-        #
+    def create_dependency_graph(self, psd):
+        """Create a dependency graph from a phrase structure tree."""
         const = []
         tag_list = {}
         nr = 1
@@ -343,23 +345,34 @@ tree = dep.tree()
 tree.draw()
 """
 
-from sys import argv, stdin, stdout
+def main(argv):
+    c = Converter()
+    psd = ''
+    infilename = outfilename = None
 
-c = Converter()
-cnt = 0
-psd = ''
+    opts, args = getopt.getopt(argv,"hi:o:",["ifile=","ofile="])
 
-with open(argv[1]) if len(argv) > 1 else stdin as infile, open(argv[2], 'w') if len(argv) > 2 else stdout as outfile:
-    for line in infile:
-        psd += line
-        cnt += 1
-        if len(line.strip()) == 0 and len(psd.strip()) > 0:
-            if cnt < 11:
-                dep = c.toDep(psd)
-                print(dep.to_conllU())
-            psd = ''
-            cnt = 0
+    for opt, arg in opts:
+        if opt == '-h':
+            print('converter.py -i <inputfile> -o <outputfile>')
+            sys.exit()
+        elif opt in ("-i", "--ifile"):
+            infilename = arg
+        elif opt in ("-o", "--ofile"):
+            outfilename = arg
 
-    if cnt < 11:
-        dep = c.toDep(psd)
-        print(dep.to_conllU())
+    with open(infilename) if infilename else stdin as infile, \
+         open(outfilename, 'w') if outfilename else stdout as outfile:
+        for line in infile:
+            psd += line
+            if len(line.strip()) == 0 and len(psd.strip()) > 0:
+                dep = c.create_dependency_graph(psd)
+                outfile.write(dep.to_conllU())
+                psd = ''
+                cnt = 0
+
+        dep = c.create_dependency_graph(psd)
+        outfile.write(dep.to_conllU())
+
+if __name__ == "__main__":
+    main(argv[1:])
